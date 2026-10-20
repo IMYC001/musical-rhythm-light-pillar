@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">光柱</string>
+
+    <string name="noti_channel">覆盖层</string>
+    <string name="noti_title">光柱正在运行</string>
+    <string name="noti_text">点这里调参数</string>
+    <string name="noti_stop">停止</string>
+
+    <string name="sec_visual">视觉</string>
+    <string name="sec_audio">声音</string>
+    <string name="sec_preset">预设</string>
+    <string name="sec_about">关于</string>
+
+    <string name="btn_start">启动光柱</string>
+    <string name="btn_stop">停止</string>
+    <string name="btn_save_settings">保存当前参数</string>
+    <string name="btn_reset">恢复默认</string>
+
+    <string name="preset_save_as">存为新档位</string>
+    <string name="preset_overwrite">覆盖此档位</string>
+    <string name="preset_rename">重命名</string>
+    <string name="preset_delete">删除</string>
+    <string name="preset_none">（未选择档位）</string>
+
+    <string name="need_overlay">需要「显示在其他应用上层」权限才能把光柱叠在桌面上</string>
+    <string name="need_overlay_btn">去授权</string>
+    <string name="need_mic">需要麦克风权限才能让光柱跟着声音动</string>
+    <string name="need_mic_btn">去授权</string>
+
+    <string name="src_mic">麦克风（外放时能听到音乐）</string>
+    <string name="src_internal">内部音频（Android 10+，需授权）</string>
+    <string name="src_tone">合成测试音（不需要权限）</string>
+</resources>

@@ -1,0 +1,109 @@
+name: release
+
+# 打一个 v* 的 tag 就发版：两个平台的产物一起传上去。
+#   git tag v1.0.0 && git push origin v1.0.0
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发版的 tag（例如 v1.0.0）"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 llvm-mingw
+        run: |
+          URL=https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
+          curl -sSL -o /tmp/llvm-mingw.tar.xz "$URL"
+          tar -xf /tmp/llvm-mingw.tar.xz -C /opt
+          echo "/opt/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: 构建
+        working-directory: windows
+        run: |
+          chmod +x build.sh
+          ./build.sh app
+
+      - name: 改成发布用的文件名
+        run: cp windows/build/LightPillar.exe LightPillar-windows-x64.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: LightPillar-windows-x64.exe
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.9"
+
+      - name: 构建
+        working-directory: android
+        run: gradle assembleDebug --no-daemon
+
+      - name: 改成发布用的文件名
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk LightPillar-android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: LightPillar-android.apk
+
+  publish:
+    name: 发布
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: 列出产物
+        run: ls -la dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## 下载哪个
+
+            | 平台 | 文件 | 说明 |
+            |---|---|---|
+            | Windows 10/11 x64 | `LightPillar-windows-x64.exe` | 单文件，双击即用。**没有窗口** —— 看托盘。 |
+            | Android 8.0+ | `LightPillar-android.apk` | 需要悬浮窗权限；不需要 root。 |
+
+            详细用法见 [README](https://github.com/${{ github.repository }}#快速开始)，
+            参数说明见 [docs/参数说明.md](https://github.com/${{ github.repository }}/blob/main/docs/参数说明.md)。
+
+            > 首次运行 Windows 版会在 exe 同目录生成 `settings.ini` 和 `presets.ini`。
+            > 绿色程序，删掉就干净了。
+          files: |
+            dist/LightPillar-windows-x64.exe
+            dist/LightPillar-android.apk
+          fail_on_unmatched_files: true

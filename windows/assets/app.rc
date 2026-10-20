@@ -1,0 +1,5 @@
+/* 资源脚本：exe 图标 + 应用程序清单（DPI 感知 / 通用控件 v6）。
+   路径相对于 windres 的 -I 目录（assets/）。 */
+
+1 ICON "icon.ico"
+1 24 "app.manifest"

@@ -1,0 +1,40 @@
+# ---- Windows 构建产物 ----
+windows/build/
+*.exe
+*.res
+*.obj
+*.pdb
+*.ilk
+
+# ---- Android ----
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ---- 运行时产物（程序自己写的，不该进仓库）----
+settings.ini
+presets.ini
+*.ini.bak*
+
+# ---- 诊断 / 取证产物 ----
+tmp/
+shots/
+*.bmp
+fb_dump.png
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Python ----
+__pycache__/
+*.pyc

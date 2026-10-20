@@ -1,0 +1,42 @@
+name: build-windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "windows/**"
+      - ".github/workflows/build-windows.yml"
+  pull_request:
+    paths:
+      - "windows/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Windows (llvm-mingw, 交叉编译)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 llvm-mingw
+        run: |
+          URL=https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
+          curl -sSL -o /tmp/llvm-mingw.tar.xz "$URL"
+          tar -xf /tmp/llvm-mingw.tar.xz -C /opt
+          echo "/opt/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: 构建
+        working-directory: windows
+        run: |
+          chmod +x build.sh
+          ./build.sh app
+
+      - name: 记录 md5（构建是可复现的，md5 变了就说明代码真的变了）
+        working-directory: windows
+        run: md5sum build/LightPillar.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LightPillar-windows-x64
+          path: windows/build/LightPillar.exe
+          if-no-files-found: error
