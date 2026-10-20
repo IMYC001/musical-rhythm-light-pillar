@@ -1,4 +1,4 @@
-# 音频分析链对照台（怎么证明「原生 = 原作品」）
+# 音频分析链对照台（怎么证明「原生 = 参考实现」）
 
 这个目录里的三件东西，是为了回答一个**只能靠数字回答**的问题：
 
@@ -16,8 +16,8 @@
 
 | 项 | 结果 |
 |---|---|
-| 原生分析链 vs 原作品 `getAudioData`（60 Hz） | **逐帧一致**，最大绝对差 `0.000e+00` |
-| 原生分析链 vs 原作品 `getAudioData`（250 Hz） | **逐帧一致**，最大绝对差 `0.000e+00` |
+| 原生分析链 vs 参考实现 `getAudioData`（60 Hz） | **逐帧一致**，最大绝对差 `0.000e+00` |
+| 原生分析链 vs 参考实现 `getAudioData`（250 Hz） | **逐帧一致**，最大绝对差 `0.000e+00` |
 | 桌面版（Electron）里分析链的**实际频率** | **249.6 次/秒**（实测，不是推断） |
 | 修复前（分析跑 60 Hz）的包络幅度 | 只有桌面版的 **70%**（bass）/ 69%（subBass） |
 | 修复后（分析跑 250 Hz） | **100%** |
@@ -26,11 +26,11 @@
 
 ## 二、三条频率，别再搞混
 
-原作品的音频链有**三层独立的时钟**，这是整件事的关键：
+参考实现的音频链有**三层独立的时钟**，这是整件事的关键：
 
 | 层 | 频率 | 出处 | 干什么 |
 |---|---|---|---|
-| ① 频谱（数据） | **30 Hz** | `browser-bridge.js`: `var PUSH_HZ = 30;` | FFT → 每声道 64 段 → 128 个频谱值；滚动直方图挂在它上面 |
+| ① 频谱（数据） | **30 Hz** | `桥接层`: `var PUSH_HZ = 30;` | FFT → 每声道 64 段 → 128 个频谱值；滚动直方图挂在它上面 |
 | ② 分析（包络） | **250 Hz** | bundle: `ke = setInterval(ht, 1e3/1e3)` → 请求 1ms，Chromium 钳到 4ms | 128→512 上采样 → 8 频段和 → 16 个量的一阶平滑 |
 | ③ 渲染 | `general.fps`（默认 60） | bundle: `<Canvas frameloop="demand">` + `iG fpsLimit={e}`，`e` 来自 `applyGeneralProperties({fps})` | 把 uniform 喂给着色器 |
 
@@ -42,7 +42,7 @@ const ee = r > 0 ? .15 : .08;
 
 它是「**每次调用作用一次**」的固定系数，**没有按 dt 缩放**
 （同一个函数里的节拍检测器倒是按 dt 缩放了：`1 - Math.pow(.6, r*60)`，
-说明作者是有意区分这两者的）。所以调用频率直接决定包络的时间常数：
+说明这是有意区分这两者的）。所以调用频率直接决定包络的时间常数：
 
 ```
 τ = -1 / (f · ln(1 - ee)) = -1 / (f · ln 0.85)
@@ -118,19 +118,19 @@ drum,0.000123456,0.000234567,...,0.000012345      ← 每行 = 一帧频谱（12
 # 原生侧（C++，src/audiotest.cpp）
 ./build/audiotest.exe drum.csv native250.csv 250
 
-# 原作品侧（Node，tools/jsref.js + tools/orig-analyzer.js）
-node tools/jsref.js drum.csv orig250.csv 250
+# 参考实现侧（Node，tools/jsref.js + tools/ref-analyzer.js）
+node tools/jsref.js drum.csv ref250.csv 250
 ```
 
-`tools/orig-analyzer.js` **不是手抄的** ——
-它由 `tools/extract_analyzer.py` 从原作品 bundle 里按大括号配对
-**逐字**切出 `class uC`（节拍触发器）和 `class eG`（音频分析器），
-一个字都没改。所以比对结果里不会有「我抄错了」这种噪声。
+`tools/ref-analyzer.js` **不是手抄的** ——
+它按大括号配对从上游实现里整段切出 `class uC`（节拍触发器）和
+`class eG`（音频分析器），逻辑一行没改，只把带平台前缀的符号换成了中性名字。
+所以比对结果里不会有「我抄错了」这种噪声。
 
 ### 3. 比
 
 ```bash
-python tools/specdiff.py native250.csv orig250.csv          # 逐帧差
+python tools/specdiff.py native250.csv ref250.csv          # 逐帧差
 python tools/specdiff.py --peaks n30.csv n60.csv n250.csv   # 各频率下的峰值
 ```
 
@@ -155,10 +155,10 @@ while (row < 行数):
 ```
 $ python tools/specdiff.py cmp1/drum-n250.csv cmp1/drum-o250.csv --quiet
 帧数 4717　最大绝对差 0.000e+00　容差 2e-04
-  bass       峰值比 原生/原作品 = 1.0000
-  subBass    峰值比 原生/原作品 = 1.0000
-  lowMid     峰值比 原生/原作品 = 1.0000
-  energy     峰值比 原生/原作品 = 1.0000
+  bass       峰值比 原生/参考实现 = 1.0000
+  subBass    峰值比 原生/参考实现 = 1.0000
+  lowMid     峰值比 原生/参考实现 = 1.0000
+  energy     峰值比 原生/参考实现 = 1.0000
 判定: 逐帧一致 ✓
 ```
 
@@ -198,9 +198,8 @@ $ python tools/specdiff.py cmp1/drum-n250.csv cmp1/drum-o250.csv --quiet
 
 | 文件 | 作用 |
 |---|---|
-| `extract_analyzer.py` | 从原作品 bundle **逐字**抠出 `uC` / `eG` → `orig-analyzer.js` |
-| `orig-analyzer.js` | 自动生成，**不要手改**。原作品分析链的参考实现 |
-| `jsref.js` | 用 `orig-analyzer.js` 跑 dump，导出 16 个量 |
+| `ref-analyzer.js` | 冻结的参考分析器，**不要手改**。原生分析链的比对基准 |
+| `jsref.js` | 用 `ref-analyzer.js` 跑 dump，导出 16 个量 |
 | `make_synth_dump.py` | 造合成频谱 dump（校准对照台用） |
 | `specdiff.py` | 逐帧 diff / 各频率峰值表 |
 | `../src/audiotest.cpp` | 原生侧：跑 dump，导出 16 个量 |

@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         /* 按钮动作在这里装配：面板只负责把按钮画出来，按下去做什么属于业务。 */
         builder.onButton = { btn -> if (btn.id == BtnId.RESET) resetAll() }
 
-        /* ★ 顺序照原作品 / Windows 版：
+        /* ★ 顺序照参考实现 / Windows 版：
              参数分组 → 「恢复默认设置」 → 预设区 → 其余分组。
            所以清单被切成两段，预设区插在中间（见 [PANEL_HEAD] 的注释）。 */
         builder.build(root, PANEL_HEAD)
@@ -191,13 +191,13 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 「恢复默认设置」按钮。逐条对齐两个上游实现：
-     *   · 原作品 `browser-bridge.js` 1100~1116 行（`values = defaults()` +
+     *   · 参考实现 `桥接层` 1100~1116 行（`values = defaults()` +
      *     `applyAudio(audioDefaults())` + `activePreset = null` + 刷新两处 UI）；
      *   · Windows 版 `main.cpp` 的 `panelNotify(ID_PANEL_RESET)`。
      *
      * ★ 有两个键**故意不重置**：
      *   `audioSourceIndex`（= Windows 版的 `audioIdleMode`）和 `debugMode`
-     *   （= `displayIndex` 那一类）。它们不是作品参数，而是「用户对**这台机器**
+     *   （= `displayIndex` 那一类）。它们不是参考实现参数，而是「用户对**这台机器**
      *   的选择」。Windows 版那里的注释原话：
      *     「『恢复默认』不该把『声音来源 / 显示在哪块屏』一起改掉」。
      *   在安卓上后果更明显：顺手把音频输入从「内部音频」改回「麦克风」，
@@ -205,7 +205,7 @@ class MainActivity : AppCompatActivity() {
      *
      * ★ 预设**一份都不动**。预设存在 `presets.ini`，和 `settings.ini` 是两份文件，
      *   所以「恢复默认」是可逆的 —— 存过档的人随时能切回去。
-     *   原作品的提示语也特意把这一点写出来（「保存过的预设不受影响」），
+     *   参考实现的提示语也特意把这一点写出来（「保存过的预设不受影响」），
      *   因为「预设会不会一起没」是用户按下这个按钮前唯一会犹豫的事。
      *
      * ⚠ 三件容易漏掉的事，缺一件用户就会觉得「没生效」或「出 bug 了」：

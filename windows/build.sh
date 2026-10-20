@@ -66,7 +66,6 @@ if [ ! -x "$CXX" ]; then
 fi
 
 NODE="${LP_NODE:-$(command -v node || true)}"
-PYTHON="${LP_PYTHON:-$(command -v python3 || command -v python || true)}"
 
 COMMON=(-std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter)
 # ⚠ 不要加 -fno-exceptions：GDI+（shot.exe）内部会 throw，
@@ -88,7 +87,7 @@ LIBS=(-ld3d11 -ldxgi -ldcomp -ld3dcompiler_47
 
 mkdir -p build
 
-# 主题表由 bundle 抽出，改了原作品就重新生成。
+# 主题表由 bundle 抽出，改了参考实现就重新生成。
 # src/data_themes.h 已进版本库，所以没有 bundle 也能编译 —— 只是不会更新。
 if [ -n "${LP_REGEN:-}" ]; then
   if [ -n "$NODE" ]; then
@@ -138,20 +137,14 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "tools" ]; then
   "$CXX" "${COMMON[@]}" -municode -o build/dragtest.exe src/dragtest.cpp -static -s -Wl,--no-insert-timestamp -luser32
 
   echo "==> 编译单行输入框测试台 prompttest.exe"
-  "$CXX" "${COMMON[@]}" -municode -o build/prompttest.exe src/prompttest.cpp src/prompt.cpp \
+  # ⚠ 这里**不能**加 -municode：prompttest.cpp 的入口是 int main()，
+  #   加了 -municode 会把入口换成 wWinMain，链接期直接 undefined symbol。
+  "$CXX" "${COMMON[@]}" -o build/prompttest.exe src/prompttest.cpp src/prompt.cpp \
     -static -s -Wl,--no-insert-timestamp -luser32 -lgdi32
 
   echo "==> 编译分析链对照台 audiotest.exe"
   "$CXX" "${COMMON[@]}" -o build/audiotest.exe src/audiotest.cpp src/audio.cpp \
     -static -s -Wl,--no-insert-timestamp -lole32 -lmmdevapi -luuid -lwinmm
-
-  echo "==> 从原作品 bundle 逐字提取参考分析器 tools/orig-analyzer.js"
-  # 找不到原作品 bundle 时不中断构建（沿用现有的 orig-analyzer.js），
-  # 但要让人看见 —— 否则会拿着过期参照物去比对还以为在比最新的。
-  if [ -n "$PYTHON" ]; then
-    "$PYTHON" tools/extract_analyzer.py >/dev/null 2>&1 || \
-      echo "    ⚠ 没能重新提取（找不到原作品 bundle？）—— 沿用现有的 tools/orig-analyzer.js" >&2
-  fi
 
   ls -la build/probe.exe build/shot.exe build/tonetest.exe build/clickprobe.exe build/audiodiag.exe
 fi

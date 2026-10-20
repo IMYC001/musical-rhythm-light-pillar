@@ -1,7 +1,7 @@
 /*
  * 着色器源码（HLSL SM 4.0，运行时用 d3dcompiler_47 编译）。
  *
- * 移植自作品的 _src/vertex.glsl 与 _src/fragment.glsl，**造型与驱动数学一行没动**，
+ * 移植自参考实现的 顶点着色器 与 片元着色器，**造型与驱动数学一行没动**，
  * 只做了必要的语言转换：
  *
  *   vec2/3/4 → float2/3/4    mix → lerp     gl_FragColor → 返回值
@@ -19,7 +19,7 @@
  *   HLSL 的 cbuffer 打包规则是「变量不能跨 16 字节边界」，裸 float2 落在
  *   offset 12 时 HLSL 会挪到 16，而 C++ 结构体不会 —— 这是最经典的一类
  *   静默错位（uniform 值全对、画面就是不对）。全用 float4 就没有这个自由度，
- *   C++ 侧 memcpy 进去必然对齐。下面再把每个分量解包成与原作品同名的局部量，
+ *   C++ 侧 memcpy 进去必然对齐。下面再把每个分量解包成与参考实现同名的局部量，
  *   于是正文一行都不用改。
  */
 #pragma once
@@ -61,7 +61,7 @@ struct VSOut {
   float2 uv  : TEXCOORD0;
 };
 
-// 解包成与原作品同名的量，下面的正文与 fragment.glsl 保持逐行对应
+// 解包成与参考实现同名的量，下面的正文与 片元着色器 保持逐行对应
 #define uRes            (P0.xy)
 #define uStyleMode      (P0.z)
 #define uBeamInset      (P0.w)
@@ -104,7 +104,7 @@ float4 PSMain(VSOut i) : SV_Target {
   float asp = uRes.x / max(uRes.y, 1.0);
 
   // ---------------------------------------------------------------
-  //  1. 驱动量：作品自己的低频齐弹
+  //  1. 驱动量：参考实现里的低频齐弹
   // ---------------------------------------------------------------
   float low = uSubBass * 1.20 + uBass * 0.85 + uEnergy * 0.25;
 

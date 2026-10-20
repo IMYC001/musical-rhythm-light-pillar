@@ -1,14 +1,14 @@
 /*
  * 光柱 · 原生桌面覆盖层（Windows / D3D11）
  *
- * 移植自 Wallpaper Engine 网页壁纸「音域回响 · 两边光柱」。
- * 视觉与音频分析链完全照搬作品，只把「画在网页上」换成「叠在桌面上」。
+ * 一份网页版光柱可视化的原生移植。
+ * 视觉与音频分析链沿用参考实现，只把「画在网页上」换成「叠在桌面上」。
  *
  * 组成：
  *   · 覆盖层窗口  —— 每块显示器一个，全屏透明、常驻最上层、鼠标穿透
  *   · 托盘图标    —— 左键开面板，右键出菜单（面板 / 显示在哪块屏 / 退出）
  *   · 调节面板    —— 原生控件窗口，改动即时生效
- *   · 音频        —— WASAPI 环回 → FFT → 作品自己的分析器（见 audio.cpp）
+ *   · 音频        —— WASAPI 环回 → FFT → 参考实现里的分析器（见 audio.cpp）
  *
  * 所有「为什么这么写」的关键注释都在对应代码旁边，尤其是踩过的坑。
  */
@@ -72,7 +72,7 @@ struct LpSettings {
   int themeIndex = 0;           // LP_THEMES 下标
   bool themeAuto = false;       // 自动轮询
   float themeCycleSec = 60.0f;  // 10 .. 300
-  /* 音频响应（作品自己的两个属性，默认值与 project.json 一致） */
+  /* 音频响应（参考实现里的两个属性，默认值与上游工程配置一致） */
   float audioIntensity = 1.0f;  // 0.3 .. 2.5
   float responseRange = 1.0f;   // 0.3 .. 2.0
   /* 强调色 */
@@ -85,8 +85,8 @@ struct LpSettings {
   /* 桌面版专属：光柱实心度 */
   float alphaK = 0.10f;         // 0 .. 1
   /* 性能 */
-  int fpsLimit = 60;            // 30 / 60 / 120 / 144   —— 渲染帧率（= 原作品 general.fps）
-  /* 分析频率：原作品把音频分析放在 `setInterval(ht, 1e3/1e3)` 里，
+  int fpsLimit = 60;            // 30 / 60 / 120 / 144   —— 渲染帧率（= 参考实现 general.fps）
+  /* 分析频率：参考实现把音频分析放在 `setInterval(ht, 1e3/1e3)` 里，
      请求 1ms、Chromium 钳到 4ms → **实测 249.6 次/秒**。
      它里面的平滑系数 ee=0.15 不按 dt 缩放，所以这个频率**就是**包络的时间常数：
        250Hz → 24.6ms；60Hz → 111ms（慢 4.5 倍，幅度被压小、弱拍被抹平）。
@@ -94,8 +94,8 @@ struct LpSettings {
   int anaHz = 250;              // 30 / 60 / 120 / 250
   /* 显示在哪块屏（-1 = 全部） */
   int displayIndex = -1;
-  /* 音频管线校准（对应 browser-bridge 声音页那几个滑杆）。
-     ⚠ 范围一律照抄浏览器版（browser-bridge.js 的 AUDIO_PARAMS + addTune），
+  /* 音频管线校准（对应 桥接层 声音页那几个滑杆）。
+     ⚠ 范围一律照抄浏览器版（桥接层 的 AUDIO_PARAMS + addTune），
        注释里写的就是界面上的 min..max。第一版好几项都写窄了，
        最要命的是 level 上限写成 0.5（浏览器是 1.0）。 */
   float gainDb = 0.0f;          // -12 .. 12
@@ -150,7 +150,7 @@ static float g_themeClock = 0.0f;    // 自动轮询计时
 
 /* 参数表（面板与设置之间的唯一映射）
  *
- *  ⚠ 这些范围**必须**和原作品浏览器版面板一致（browser-bridge.js 里的
+ *  ⚠ 这些范围**必须**和参考实现浏览器版面板一致（桥接层 里的
  *    PROPS / AUDIO_PARAMS）。第一版移植时「总电平」上限写成了 0.5，
  *    而浏览器版是 1.0 —— 用户把滑杆推到底也只有一半电平，
  *    表现就是「不管怎么调参数跳动幅度都很小」。范围对不上的滑杆
@@ -163,7 +163,7 @@ enum SId {
   S_GAIN_DB, S_WIDTH_DB, S_BALANCE, S_MAP_MODE, S_BAND_MODE,
   S_CONTRAST, S_LEVEL, S_LO_PCT, S_HI_PCT, S_WIN_SEC,
   S_RESET,
-  /* 预设区（对应 browser-bridge.js 里参数页最顶上那块） */
+  /* 预设区（对应 桥接层 里参数页最顶上那块） */
   S_PRESET_SEL, S_PRESET_SAVE, S_PRESET_RENAME, S_PRESET_DEL,
   S_COUNT
 };
@@ -185,15 +185,15 @@ static int g_presetSelItem = -1;
 /* ⚠ 这里原来有个 `fpsToPushHz()`（把渲染帧率当成「分析推送频率」）——
  *   **v6 已删除**，因为它背后的模型是错的。
  *
- *  原作品里其实有**两层不同的频率**（见 audio.cpp 的 tick()）：
+ *  参考实现里其实有**两层不同的频率**（见 audio.cpp 的 tick()）：
  *
  *    ① 数据层：FFT → 每声道 64 段 → 128 个频谱值，固定 **30Hz**
- *       （`browser-bridge.js` 的 `PUSH_HZ = 30`）。滚动直方图挂在这层。
+ *       （`桥接层` 的 `PUSH_HZ = 30`）。滚动直方图挂在这层。
  *    ② 分析层：128 → 512 桶 → 8 频段 → 16 个量的一阶平滑，
  *       跟着**渲染帧率**跑（`getAudioData()` 在 rAF 里，频率由 `FPS_LIMIT` 定）。
  *
  *  v5 把两层都挂在渲染帧率上、再给平滑系数做「30Hz 时间常数换算」，
- *  结果时间常数变成原作品的 1.93 倍、**包络峰值只剩 67%** ——
+ *  结果时间常数变成参考实现的 1.93 倍、**包络峰值只剩 67%** ——
  *  正是用户报的「响应幅度没有 Electron 大、部分节拍不响应」。
  *  v6 改成：数据层钉死 30Hz、分析层每帧跑、平滑系数用原始值不换算。
  *  于是 fpsLimit 只影响**渲染与分析**频率，不再需要任何换算，
@@ -224,12 +224,12 @@ static void pushAudioParams() {
   g_audio.idleEnabled = g_set.idleEnabled;
   g_audio.idleDebounce = g_set.idleDebounce;
   g_audio.idleFade = g_set.idleFade;
-  /* ★ v6：这里**不再**设置 pushHz。频谱那一层固定 30Hz（原作品的
+  /* ★ v6：这里**不再**设置 pushHz。频谱那一层固定 30Hz（参考实现的
      `PUSH_HZ`），分析层按 anaHz 跑（默认 250 = 桌面版实测的定时器频率）——
      两者都与渲染帧率无关，见 tick() 的三层频率注释。 */
   g_audio.anaHz = (double)g_set.anaHz;
   /* ★★★ 必须走 paramsChanged()，不能只 rebuildTiltOnly()。
-     原作品 bridge 里 `bandMode` 的 setter 是：
+     参考实现的桥接层里 `bandMode` 的 setter 是：
          set: function (v) { BAND_MODE = ...; resetTrackers(); if (audioCtx) buildBands(); }
      —— 最后那句 `buildBands()` 我们**漏掉了**，后果就是「频率轴」这一项
      在面板上怎么切都没反应：
@@ -785,7 +785,7 @@ static void destroyTray() {
 
 /* ============================ 调节面板 ============================ */
 /*
- *  面板本体是**自绘**的（见 panel.cpp，外观对齐原作品的浏览器版面板）。
+ *  面板本体是**自绘**的（见 panel.cpp，外观对齐参考实现的浏览器版面板）。
  *  这里只负责三件事：
  *    ① 把设置项翻译成面板项（绑定到 g_set 的字段，以及几个代理量）；
  *    ② 接收面板回调，做副作用（重建覆盖层 / 重连音频 / 保存配置）；
@@ -848,7 +848,7 @@ static void addHint(int tab, std::initializer_list<const wchar_t*> lines) {
   for (const wchar_t* s : lines) it.options.push_back(s);
 }
 
-/* 把 project.json 里的主题列表搬过来。顺序必须与 LP_THEMES 一致 ——
+/* 把上游工程配置里的主题列表搬过来。顺序必须与 LP_THEMES 一致 ——
    第 0 项是「自动轮询」占位，1..N 对应 LP_THEMES[0..N-1]。 */
 static std::vector<std::wstring> themeOptionLabels() {
   std::vector<std::wstring> v;
@@ -889,11 +889,11 @@ static void buildPanelItems() {
   addSelect(S_FPS, 0, L"渲染帧率（桌面版）", &g_fpsSel, 1,
             {L"30 fps", L"60 fps", L"120 fps", L"144 fps"});
   /* ★ 这段文案改过三次，每次都对应一次认知修正，留着当路标。
-     第一版：「原作品按 60fps 调校，改帧率手感就不一致」—— 错。
+     第一版：「参考实现按 60fps 调校，改帧率手感就不一致」—— 错。
      第二版（v5）：「推送频率跟着帧率走、平滑系数做等效换算」—— 也错。
      第三版（v6 初）：以为分析层跟渲染帧率跑（`getAudioData` 在 rAF 里）—— 还是错。
-     真相（v6 定稿）：原作品有**三层各自的频率**（见 audio.cpp 的 tick()）：
-       · 频谱层固定 30Hz —— `browser-bridge.js` 的 `PUSH_HZ = 30`，
+     真相（v6 定稿）：参考实现有**三层各自的频率**（见 audio.cpp 的 tick()）：
+       · 频谱层固定 30Hz —— `桥接层` 的 `PUSH_HZ = 30`，
          滚动直方图挂在它上面，窗口永远是「秒 × 30」帧；
        · 分析层固定 **250Hz** —— bundle 里 `setInterval(ht, 1e3/1e3)`，
          请求 1ms、Chromium 钳到 4ms，实测 249.6 次/秒。平滑系数
@@ -903,14 +903,14 @@ static void buildPanelItems() {
          `iG fpsLimit={e}`，`e` 来自 `applyGeneralProperties({fps})`。
      任何「等效换算」都会把响应幅度改小（v5 把它改到了 67%）。
      所以这一项（渲染帧率）只该管画面重画多快，别去动另外两层。 */
-  addHint(0, {L"只改「画面每秒重画几次」，与原作品的 general.fps 同义。",
+  addHint(0, {L"只改「画面每秒重画几次」，与参考实现的 general.fps 同义。",
               L"频谱 30Hz、分析 250Hz 各有自己的时钟。",
-              L"60 fps = 原作品默认值；更高只是更顺，幅度不变。"});
+              L"60 fps = 参考实现默认值；更高只是更顺，幅度不变。"});
 
   addSelect(S_ANA_HZ, 0, L"音频分析频率", &g_anaSel, 3,
             {L"30 Hz", L"60 Hz", L"120 Hz", L"250 Hz（桌面版实测）"});
   /* ★ 这一项是 v6 新加的，也是本轮「原生响应幅度不如桌面版」的根因所在。
-     原作品把音频分析（getAudioData，含一阶平滑 ee=0.15）放在
+     参考实现把音频分析（getAudioData，含一阶平滑 ee=0.15）放在
      `setInterval(ht, 1e3/1e3)` 里 —— 请求 1ms，Chromium 把嵌套定时器
      钳到 4ms，实测 **249.6 次/秒**。而 ee 是「每次调用作用一次」、
      不按 dt 缩放的，所以这个频率**就是**包络的时间常数：
@@ -918,7 +918,7 @@ static void buildPanelItems() {
         60Hz → τ=111ms（慢 4.5 倍 → 幅度被压小、弱拍被抹平）
      之前移植版把它挂在渲染帧率上，就是这个原因。
      ⚠ 它和「渲染帧率」是两条独立的时钟，别设成同一个值就以为对齐了。 */
-  addHint(0, {L"原作品把分析放在 1ms 定时器里，实测 250 次/秒。",
+  addHint(0, {L"参考实现把分析放在 1ms 定时器里，实测 250 次/秒。",
               L"调低 → 光柱变迟钝、鼓点幅度变小。",
               L"250 Hz 才是桌面版观感；它只影响包络跟手程度。"});
 
@@ -947,8 +947,8 @@ static void buildPanelItems() {
      改文案后用 `python tools/check_hints.py` 量一遍，别再靠感觉。 */
 
   /* ======================= 参数页（tab 1）======================= */
-  /* 顺序照原作品：先「恢复默认设置」，紧接着**预设区**
-     （原作品的注释：「它管的是整套参数，比下面任何一条具体参数都更靠前」），
+  /* 顺序照参考实现：先「恢复默认设置」，紧接着**预设区**
+     （参考实现的注释：「它管的是整套参数，比下面任何一条具体参数都更靠前」），
      然后才是各个分组。 */
   addItem(LP_BUTTON, ID_PANEL_RESET, 1, L"恢复默认设置");
 
@@ -1009,10 +1009,10 @@ static void applyAudioSource() {
 }
 
 /* ============================ 参数预设 ============================
- * 对应原作品面板**参数页**上那一块（browser-bridge.js 的「预设区」）：
+ * 对应参考实现面板**参数页**上那一块（桥接层 的「预设区」）：
  * 一个下拉 + 「保存参数」+「删除」，外加一个名称输入框（这里拆成「重命名」按钮）。
  *
- * ⚠ 一套预设包含**两页**的参数。原作品特意在界面上写了一句话提醒用户，
+ * ⚠ 一套预设包含**两页**的参数。参考实现特意在界面上写了一句话提醒用户，
  *   因为「声音页的参数也进去了」这件事看不出来，用户很容易以为预设只管当前页。
  *   这里直接存 visitAllSettings 的整份清单，所以天然覆盖两页。
  *
@@ -1147,7 +1147,7 @@ static void refreshPresetOptions() {
   lp_panel_sync();
 }
 
-/* 把当前 g_set 存成预设。名字已存在就**覆盖**（顺序不变，和原作品一致）。 */
+/* 把当前 g_set 存成预设。名字已存在就**覆盖**（顺序不变，和参考实现一致）。 */
 static void presetSaveAs(const std::wstring& name) {
   LpPreset ps;
   ps.name = name;
@@ -1175,7 +1175,7 @@ static void presetApply(int idx) {
   }
 
   /* 预设**不动**这两项：「显示在哪块屏」和「声音来源」是「这台机器怎么用」，
-     不是作品参数 —— 和「恢复默认设置」的处理一致（那里也特意保留了它们）。
+     不是参考实现参数 —— 和「恢复默认设置」的处理一致（那里也特意保留了它们）。
      做法是套完再写回去，这样 visitAllSettings 仍然只需要维护一份清单。 */
   const int keepDisplay = g_set.displayIndex;
   const int keepIdle = g_set.audioIdleMode;
@@ -1319,13 +1319,13 @@ static void panelNotify(int id, void* user) {
   (void)user;
   if (id == ID_PANEL_RESET) {
     /* 「恢复默认」不该把「声音来源 / 显示在哪块屏」一起改掉 —— 那两项是
-       用户对**这台机器**的选择，不是作品参数。 */
+       用户对**这台机器**的选择，不是参考实现参数。 */
     const int keepIdle = g_set.audioIdleMode;
     const int keepDisplay = g_set.displayIndex;
     g_set = LpSettings{};
     g_set.audioIdleMode = keepIdle;
     g_set.displayIndex = keepDisplay;
-    /* 已经离开任何一套预设了，下拉不该还显示着它（原作品同款处理）。 */
+    /* 已经离开任何一套预设了，下拉不该还显示着它（参考实现同款处理）。 */
     g_presetSel = 0;
     savePresetsToDisk();
     refreshPresetOptions();
@@ -1352,9 +1352,9 @@ static void panelNotify(int id, void* user) {
     }
   } else if (id == S_FPS) {
     g_set.fpsLimit = (g_fpsSel == 0) ? 30 : (g_fpsSel == 1) ? 60 : (g_fpsSel == 2) ? 120 : 144;
-    /* ★ 渲染帧率 = 原作品的 `general.fps`，只决定**画面每秒重画几次**。
+    /* ★ 渲染帧率 = 参考实现的 `general.fps`，只决定**画面每秒重画几次**。
        另外两层各有自己的时钟，都不受它影响：
-         · 频谱层固定 30Hz（`browser-bridge.js` 的 `PUSH_HZ`），
+         · 频谱层固定 30Hz（`桥接层` 的 `PUSH_HZ`），
            滚动直方图挂在它上面 → 这里**不需要** resetTrackers()，
            窗口长度和内容都与渲染帧率无关，改帧率不会打断分位归一化；
          · 分析层按 anaHz（默认 250，见 S_ANA_HZ）→ 也**不需要**换算
@@ -1486,7 +1486,7 @@ static void accumulatePixelsBuf(const unsigned char* base, int W, int H,
       }
     }
   }
-  /* 左右对称：同一条水平线上 x 与 W-1-x 的 RGB 差。作品是镜像对称的，
+  /* 左右对称：同一条水平线上 x 与 W-1-x 的 RGB 差。参考实现是镜像对称的，
      这一项掉下去就说明着色器或 uv 搞错了。 */
   for (int y = 0; y < H; y += 8) {
     const unsigned char* row = base + (size_t)y * (size_t)W * 4;
@@ -1626,7 +1626,7 @@ struct LpSelfTest {
   bool bandSigRestored = false;
   long long bandSigBefore = 0, bandSigAfter = 0;
 
-  /* 参数预设：原作品参数页顶上那套「预设 / 保存参数 / 删除」。
+  /* 参数预设：参考实现参数页顶上那套「预设 / 保存参数 / 删除」。
      分四项判据，每项对应一种真实的失效方式：
        · 存了但没进下拉   → 「选了没反应」的空选项
        · 载入后参数没回来 → 覆盖不全 / 漏参数
@@ -1767,7 +1767,7 @@ static void selftestPanel() {
     panelNotify(ID_PANEL_RESET, nullptr);
     g_st.resetButtonWorks = (g_set.level < 0.5f);
   }
-  /* ★ 参数预设（原作品参数页最上面那套「预设 / 保存参数 / 删除」）。
+  /* ★ 参数预设（参考实现参数页最上面那套「预设 / 保存参数 / 删除」）。
      判据刻意**跨两页**取样：beamInset 是视觉页的，level / bandMode 是声音页的 ——
      「一套预设含两页参数」这句承诺必须真的被验证，而不是写在提示里就算。
      每一项判据都对应一种真实的失效方式（见 LpSelfTest 里那段注释）。 */
@@ -2316,13 +2316,13 @@ static void selftestWriteReport() {
           g_st.bandSigChanged ? "true" : "false",
           g_st.bandSigBefore, g_st.bandSigAfter,
           g_st.bandSigRestored ? "true" : "false");
-  /* ★ 参数预设（原作品参数页最上面那套「预设 / 保存参数 / 删除」）。
+  /* ★ 参数预设（参考实现参数页最上面那套「预设 / 保存参数 / 删除」）。
      报的是**跨两页的取证结果**，不是「控件值变了」—— 那只能证明消息通了：
        · 视觉页的 beamInset、声音页的 level / bandMode 三样都必须回来；
        · bandMode 还额外查了 g_audio.bandMode（引擎侧）而不仅是 g_set（设置结构），
          因为「结构里对了但没推到引擎」正是 v7 踩过的那个坑；
        · 同时查 displayIndex / audioIdleMode **没有**被预设改动 ——
-         那两项是「这台机器怎么用」，不是作品参数。 */
+         那两项是「这台机器怎么用」，不是参考实现参数。 */
   fprintf(f, "  \"参数预设\": {\"保存成功\":%s,\"出现在下拉里\":%s,"
              "\"视觉参数载回\":%s,\"音频参数载回\":%s,\"频段表已重建\":%s,"
              "\"下拉选择生效\":%s,\"保存参数覆盖语义\":%s,"
@@ -2552,7 +2552,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR lpCmdLine, int) {
      走托盘菜单太绕，而且面板必须是「用户真的在用」的那个实例）。 */
   bool panelHold = false;
   /* --dumpspec <文件> <标签>：把音频链路里**每一帧的 128 个频谱值**落盘。
-     这是「原生 vs 原作品」逐帧比对的**取样器** —— 光靠听和看没法定位
+     这是「原生 vs 参考实现」逐帧比对的**取样器** —— 光靠听和看没法定位
      「幅度偏小 / 部分节拍不响应」这类偏差，必须把同一串真实频谱
      分别喂给两条分析链（src/audiotest.cpp 与 tools/jsref.js）再 diff。 */
   std::wstring dumpSpecPath, dumpSpecLabel;

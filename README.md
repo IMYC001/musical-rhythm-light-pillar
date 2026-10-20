@@ -4,7 +4,7 @@
 
 # Light Pillar · 两边光柱
 
-**把 Wallpaper Engine 里的音频律动光柱，做成不挡桌面的透明覆盖层。**
+**跟着音乐起伏的光柱，直接叠在桌面上 —— 不挡图标，不盖壁纸。**
 
 屏幕左右两边各一道光柱，跟着音乐起伏。它只加光、不铺黑底 ——
 底下的桌面、图标、壁纸照常可见可点。
@@ -46,10 +46,10 @@ Windows 原生 · Android 悬浮窗 · 同一套着色器数学
 - **不挡鼠标。** Windows 版整窗 `WS_EX_TRANSPARENT`，Android 版 `FLAG_NOT_TOUCHABLE`。
 - **铺满整块屏幕。** 包括任务栏 / 状态栏所在的那一条，不做任何避让。
 
-原始视觉来自 Wallpaper Engine 创意工坊作品 **「音域回响」**（[3747222633](https://steamcommunity.com/sharedfiles/filedetails/?id=3747222633)，
-作者 [CmzYa](https://www.ifdian.net/a/CmzYa)）的网页版实现。这个仓库是把它从浏览器里
-**搬到系统层**的完整移植 —— 着色器的距离场、软饱和、两种风格的分支、空闲呼吸、
-染色顺序全部逐字保留，改的只有「怎么把画面送到屏幕上」和「声音从哪来」。
+着色器数学（距离场、软饱和、两种风格分支、空闲呼吸、染色顺序）与 15 套配色，
+沿用自一份已有的公开实现。本项目做的是**把它从浏览器搬到系统层**：重写音频采集、
+接上各平台的合成器、重建参数系统与面板，并把同一套数学落到两个平台上。
+移植过程中的取舍与踩过的坑都写在 [`docs/移植笔记.md`](docs/移植笔记.md) 里。
 
 ---
 
@@ -70,7 +70,7 @@ Windows 原生 · Android 悬浮窗 · 同一套着色器数学
 <img src="docs/images/themes.png" width="100%" alt="15 套主题配色">
 </div>
 
-配色表由原作品的 bundle **逐字抽取**生成（`windows/scripts/gen_data.js`），
+配色表由参考实现的 bundle **逐字抽取**生成（`windows/scripts/gen_data.js`），
 不是手抄 —— 15 套 × 4 个颜色 = 60 个线性色值，抄错一位整根柱子就偏色。
 
 ### 两种光柱风格
@@ -96,7 +96,7 @@ Windows 原生 · Android 悬浮窗 · 同一套着色器数学
 </div>
 
 Windows 版是托盘里点开的自绘面板（两页：**声音** / **参数**），布局、分组、
-滑杆手感都对着原作品的网页面板做。Android 版是一张可滚动的设置页，参数一一对应。
+滑杆手感都对着参考实现的网页面板做。Android 版是一张可滚动的设置页，参数一一对应。
 
 ---
 
@@ -104,7 +104,7 @@ Windows 版是托盘里点开的自绘面板（两页：**声音** / **参数**�
 
 | | Windows | Android |
 |---|---|---|
-| 产物 | 单文件 `LightPillar.exe`（约 580 KB） | `LightPillar.apk`（约 5.7 MB） |
+| 产物 | 单文件 `LightPillar.exe`（约 580 KB） | `LightPillar.apk`（约 5.4 MB） |
 | 依赖 | 无。静态链接，不需要 .NET / VC 运行库 | Android 8.0+（API 26） |
 | 渲染 | D3D11 + DirectComposition，预乘 alpha | GLES 2.0 全屏透明悬浮窗 |
 | 声音 | WASAPI loopback（抓系统输出，无需虚拟声卡） | 麦克风 / 内部音频（MediaProjection，需授权） |
@@ -132,6 +132,12 @@ Windows 版是托盘里点开的自绘面板（两页：**声音** / **参数**�
 
 1. 到 [Releases](../../releases/latest) 下载 `LightPillar-android.apk`。
 2. 安装后打开，按提示授予**悬浮窗权限**（「显示在其他应用上层」）。
+
+   > 如果之前装过自己编译的 debug 版，会报
+   > `INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match`。
+   > 这不是包坏了 —— Release 包由 CI 签名，和本机 debug 签名不是同一个。
+   > 先卸载旧版再装：`adb uninstall com.lightpillar`。
+
 3. 选「音频输入」：
    - **麦克风** —— 零摩擦。手机外放音乐，麦克风听到，光柱就动。
    - **内部音频** —— 抓别的 App 放的声音。每次启动要授权一次；
@@ -161,7 +167,7 @@ Windows 版是托盘里点开的自绘面板（两页：**声音** / **参数**�
 每段用一个滚动直方图做自适应归一化 —— 常态分位与峰值分位各自跟踪，
 所以「安静的歌」和「吵闹的歌」都能推出满幅，不需要用户手动调增益。
 
-**③ 驱动量。** 作品自己的低频齐弹：
+**③ 驱动量。** 参考实现里的低频齐弹：
 
 ```glsl
 low   = subBass * 1.20 + bass * 0.85 + energy * 0.25
@@ -269,7 +275,7 @@ light-pillar/
 │   │   ├── audio.cpp           WASAPI loopback + FFT + 8 段包络
 │   │   ├── panel.cpp           自绘面板（两页）
 │   │   ├── prompt.cpp          单行输入框（重命名预设用）
-│   │   ├── shader_src.h        HLSL 着色器（逐行对应原作品 GLSL）
+│   │   ├── shader_src.h        HLSL 着色器（逐行对应参考实现 GLSL）
 │   │   └── data_themes.h       15 套主题色（由 gen_data.js 生成）
 │   ├── assets/                 图标 + 清单
 │   ├── scripts/                构建期脚本（主题抽取 / 图标生成）
@@ -309,21 +315,18 @@ light-pillar/
 
 ## 授权与致谢
 
-**视觉与参数体系来自原作者，不是本项目原创。** 请务必读完这一节。
+**着色器数学与配色方案不是本项目原创。** 请务必读完这一节。
 
-- 原始作品：**「音域回响」** Wallpaper Engine 创意工坊
-  [3747222633](https://steamcommunity.com/sharedfiles/filedetails/?id=3747222633)，作者 **CmzYa**
-  （[爱发电](https://www.ifdian.net/a/CmzYa)）。
-  着色器的距离场、软饱和、两种风格分支、空闲呼吸、染色顺序，以及 15 套主题的色值，
-  均来自该作品，本仓库只做了平台移植（GLSL → HLSL / GLSL ES）与系统集成。
-- 光柱造型参考了 beat-viz 的「灯条光晕 · 两边」与「常驻光柱 · 节拍闪色」。
-- **如果你要商用或再分发，请先取得原作者授权。** 原作品在创意工坊发布，
-  其授权条款以工坊页面为准。
+- **本项目原创的部分是平台侧的一切**：WASAPI loopback / MediaProjection 音频采集、
+  D3D11 + DirectComposition 的预乘 alpha 合成、Android 透明悬浮窗、
+  27 项参数系统与预设、自绘调节面板、诊断与逐帧对照工具。
+- 着色器的距离场、软饱和、两种风格分支、空闲呼吸、染色顺序，以及 15 套主题的色值，
+  沿用自一份已有的公开实现。本项目做的是移植（GLSL → HLSL / GLES）与系统集成，
+  没有重新设计视觉。
+- **如果你要商用或再分发，请自行确认上游的权利状态。** 本仓库的 GPL-3.0 只能覆盖
+  本项目自己写的代码，覆盖不到视觉与配色那部分。
 - 本仓库以 **GPL-3.0** 发布（见 [LICENSE](LICENSE)）：再分发或修改后发布，
   都必须同样开源并保留版权声明。
-- 但 GPL 只能约束**本项目自己写的代码**（窗口 / 合成 / 音频采集 / 参数系统 / 面板 /
-  诊断工具）。着色器算法与配色来自原作品，那部分的权利不在本项目手上 ——
-  商用前仍需取得 CmzYa 的授权。
 
 一句话：**代码是 GPL-3.0 的，视觉不是我们的。**
 
@@ -350,6 +353,6 @@ no root, no virtual audio cable.
 - **Android** — transparent full-screen overlay (GLES 2.0), microphone or MediaProjection
   internal audio, Android 8.0+, no root required.
 
-The shader math, the 27-parameter system and the 15 colour themes come from the original
-Wallpaper Engine wallpaper **"音域回响" (id 3747222633) by CmzYa**. This repository is a
-platform port, not the original work — see [Licensing](#授权与致谢) before redistributing.
+The shader math, the 27-parameter system and the 15 colour themes are carried over from
+an existing public implementation; this repository is a **platform port**, not the original
+work. See [Licensing](#授权与致谢) before redistributing.

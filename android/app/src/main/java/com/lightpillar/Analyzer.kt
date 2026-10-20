@@ -11,12 +11,12 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/* ---- ② 的参数（对应原作品 browser-bridge 里的同名常量）---- */
+/* ---- ② 的参数（对应参考实现 桥接层 里的同名常量）---- */
 const val LP_CH_BINS = 64          // 每声道 64 段
 const val LP_OUT_BINS = 128        // 64 左 + 64 右
 const val LP_FFT_SIZE = 2048
 const val LP_MAX_HZ = 16000.0
-/** 等比（log）频率轴的下限，对应 bridge 的 `BAND_LO_HZ = 30`。 */
+/** 等比（log）频率轴的下限，对应 桥接层的 `BAND_LO_HZ = 30`。 */
 const val LP_BAND_LO_HZ = 30.0
 const val LP_DB_MIN = -100.0
 const val LP_DB_MAX = -20.0
@@ -51,14 +51,14 @@ class LpBands {
  * 四段链路：
  *   ① 采集（由 [AudioEngine] 填 pending 缓冲，立体声 float）
  *   ② 2048 点 FFT（Blackman 窗）→ 每声道 64 段电平 0~1   ← 等价 Web Audio AnalyserNode
- *   ③ 128 值（64 左 + 64 右）→ 4 倍上采样成 512 桶        ← 等价 setWallpaperAudioData
- *   ④ 512 桶 → 10 个频段包络 + 平滑                        ← 等价作品 bundle 里的 getAudioData
+ *   ③ 128 值（64 左 + 64 右）→ 4 倍上采样成 512 桶        ← 等价 setAudioFrame
+ *   ④ 512 桶 → 10 个频段包络 + 平滑                        ← 等价参考实现 bundle 里的 getAudioData
  *
- * ⚠ ②③④ 三段的常数一个都不能改。作品是在 WE 的 128 值格式下调的参，
- *   bridge 的作者又是照着 WE 的物理含义反推的 64 段划分（0–16kHz 等宽）。
+ * ⚠ ②③④ 三段的常数一个都不能改。这些常数是在 128 值频谱格式下调出来的，
+ *   64 段划分（0–16kHz 等宽）也是照该格式的物理含义反推的。
  *   任何一处「等价改写」都会让 drive 的摆幅对不上，表现是光柱要么不动、要么顶满。
  *
- * ★★★ 三层频率，不能合并（原作品就是这么分的）：
+ * ★★★ 三层频率，不能合并（参考实现就是这么分的）：
  *     数据层 30Hz（FFT→128 值） / 分析层 anaHz=250Hz（→16 个平滑量） / 渲染层 fpsLimit
  *   Windows 版把这三个错法全踩过一遍，见 [tick] 里的长注释。
  */
@@ -151,7 +151,7 @@ class Analyzer {
     /* ==================== 频段划分 ==================== */
 
     /**
-     * 第 i 段的下边界频率（Hz）。逐字对应 bridge 的
+     * 第 i 段的下边界频率（Hz）。逐字对应 桥接层的
      * ```
      * function bandEdge(i) {
      *   if (BAND_MODE === 'log') return BAND_LO_HZ * Math.pow(MAX_HZ / BAND_LO_HZ, i / CH_BINS);
@@ -170,7 +170,7 @@ class Analyzer {
 
     fun rebuildTilt() {
         for (i in 0 until LP_CH_BINS) {
-            /* ★ 参考频率取自**当前**频段划分（和原作品一致）。
+            /* ★ 参考频率取自**当前**频段划分（和参考实现一致）。
                Windows 版 v6 之前这里写死了 linear 的公式 —— 等比模式下每段的
                中心频率完全不同、补偿量却按等宽算，是第二个偏差。 */
             val fc = max(0.5 * (bandEdgeHz(i.toDouble()) + bandEdgeHz(i + 1.0)), LP_TILT_REF_HZ)
@@ -221,7 +221,7 @@ class Analyzer {
     fun resetTrackers() {
         /* 窗口长度可以调（界面上的「跟踪窗口」，秒）。
            ★ 固定按 **30Hz** 换算成帧数 —— 直方图挂在**频谱**那一层，
-             而频谱固定跑 30Hz（= 原作品 browser-bridge.js 的 PUSH_HZ = 30）。
+             而频谱固定跑 30Hz（= 参考实现 桥接层 的 PUSH_HZ = 30）。
              所以「渲染帧率」怎么改都不会动到这里，也就不需要重新攒 10 秒。 */
         val hz = 30
         var want = Math.round(rpWinSec * hz).toInt()
@@ -323,7 +323,7 @@ class Analyzer {
         val right = DoubleArray(LP_FFT_SIZE)
 
         /* ⚠⚠ 这里是整条链最容易写错的地方：**读的是「最近 2048 帧」这个滑动窗口**，
-           不是「本帧新增的那点数据」。原作品的 AnalyserNode 是一个随音频采样率
+           不是「本帧新增的那点数据」。参考实现的 AnalyserNode 是一个随音频采样率
            连续滑动的 2048 点窗口，getByteFrequencyData 只是读、不消费。
            如果这里只拿「本帧新增」（48kHz 下每帧约 800 个采样），永远凑不满 2048
            —— FFT 输入全 0、频谱恒为 -100dB，光柱看着还在动（空闲波浪在撑），
@@ -362,7 +362,7 @@ class Analyzer {
                     val mag = sqrt(fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k]) / LP_FFT_SIZE.toDouble()
                     val db = 20.0 * log10(mag + 1e-30)
                     /* 复刻 getByteFrequencyData 的量化 + 截断（DB_MIN..DB_MAX 之外
-                       会被夹住，这一步不能省 —— 作品的段电平是在夹过的值上继续算的）*/
+                       会被夹住，这一步不能省 —— 参考实现的段电平是在夹过的值上继续算的）*/
                     var norm = (db - LP_DB_MIN) / (LP_DB_MAX - LP_DB_MIN)
                     norm = norm.coerceIn(0.0, 1.0)
                     val byte = Math.round(norm * 255.0).toInt()
@@ -378,7 +378,7 @@ class Analyzer {
                     /* perband：把本帧电平丢进该段的滚动直方图，再从直方图读
                        p_lo / p_hi，得到「该段自己的动态范围」。
                        ★ 这里不需要任何抽稀：整条 computeSpectrum128 已固定跑 30Hz
-                         （原作品 PUSH_HZ = 30），喂进直方图的样本天然就是 30Hz，
+                         （参考实现 PUSH_HZ = 30），喂进直方图的样本天然就是 30Hz，
                          窗口 300 帧 = 10 秒。 */
                     val base = slot * LP_RP_BINS
                     var bi = floor((bandDb - LP_RP_DBMIN) / rpBinW).toInt()
@@ -432,13 +432,13 @@ class Analyzer {
 
     fun analyze512() {
         /* ③ 128 → 512：最近邻上采样，每个输入值占 4 个输出桶
-              （对应作品里的 Math.floor(n * t / 512)）*/
+              （对应参考实现里的 Math.floor(n * t / 512)）*/
         for (n in 0 until 512) {
             val idx = floor(n.toDouble() * LP_OUT_BINS / 512.0).toInt()
             bucket[n] = spectrum[if (idx < LP_OUT_BINS) idx else LP_OUT_BINS - 1]
         }
 
-        /* ④ 作品 bundle 里的 getAudioData，逐项照抄 */
+        /* ④ 参考实现 bundle 里的 getAudioData，逐项照抄 */
         val n = 512
         var r = 0.0; var o = 0.0; var cFlux = 0.0
         var h = 0.0; var d = 0.0; var m = 0.0; var v = 0.0
@@ -463,9 +463,9 @@ class Analyzer {
         }
 
         val rr = r / n
-        /* ⚠ 分母比桶数大 1：作品原文是 h/5、d/9、m/13、v/21、y/37、x/40、b/61、M/76，
+        /* ⚠ 分母比桶数大 1：参考实现原文是 h/5、d/9、m/13、v/21、y/37、x/40、b/61、M/76，
            桶数分别是 5/8/12/21/36/39/60/75。也就是说**只有 h 是整除的**，
-           其余一律多除了 1。这是原作者调过的刻度，照抄，不要「修正」。 */
+           其余一律多除了 1。这是参考实现调过的刻度，照抄，不要「修正」。 */
         val lSub = h / 5.0
         val iBass = d / 9.0
         val zLowMid = m / 13.0
@@ -497,21 +497,21 @@ class Analyzer {
         val reDensity = fe / 8.0
         val qCentroid = if (r > 0) o / r else 0.0
 
-        /* ★★★ 一阶平滑系数：**必须用原作品的原始值，一次都不能换算**。
+        /* ★★★ 一阶平滑系数：**必须用参考实现的原始值，一次都不能换算**。
          *
-         *  原作品 bundle 里（getAudioData）：
+         *  参考实现 bundle 里（getAudioData）：
          *      const ee = r > 0 ? .15 : .08;
          *      this.smoothedData.subBass += (L - this.smoothedData.subBass) * ee;
          *      …（16 个量都是这一个系数）
          *  它是**每次调用作用一次**的固定系数，而且**没有**按 dt 缩放 ——
          *  同一个函数里的节拍检测器倒是按 dt 缩放了（1 - 0.6^(dt*60)），
-         *  说明作者是有意这么写的。而它跑在 requestAnimationFrame 里，
-         *  频率由 FPS_LIMIT 决定（browser-bridge.js 里默认 60）。
+         *  说明这是有意这么写的。而它跑在 requestAnimationFrame 里，
+         *  频率由 FPS_LIMIT 决定（桥接层 里默认 60）。
          *
          *  ⚠ Windows 版 v5 在这里犯过一个错：把 ee 当成「按 30Hz 推送、每次作用
          *    一次」，于是按相同时间常数换算成 ee_eff = 1-(1-0.15)^(30/pushHz)，
-         *    在 60fps 下得到 0.0780。结果时间常数变成 0.214s，是原作品的 1.93 倍
-         *    （原作品 0.111s）→ **包络峰值只剩 67%**，
+         *    在 60fps 下得到 0.0780。结果时间常数变成 0.214s，是参考实现的 1.93 倍
+         *    （参考实现 0.111s）→ **包络峰值只剩 67%**，
          *    表现就是用户报的「响应幅度没有 Electron 大、部分节拍不响应」。
          *
          *  正确做法：分析层跟着**真实时间**按 anaHz 跑，系数原样用 0.15 / 0.08。 */
@@ -552,7 +552,7 @@ class Analyzer {
             lastIdleTime = 0.0
         }
 
-        /* 电平表：和 bridge 的 updateMeter 同一套算式（sum/128*5.5，夹到 1）*/
+        /* 电平表：和 桥接层的 updateMeter 同一套算式（sum/128*5.5，夹到 1）*/
         var sum = 0.0
         for (i in 0 until LP_OUT_BINS) sum += spectrum[i]
         meterLevel = min(1.0, (sum / LP_OUT_BINS) * 5.5).toFloat()
@@ -561,10 +561,10 @@ class Analyzer {
     /**
      * 渲染循环每帧调一次：推进三个频率层、更新 bands / idleWave。
      *
-     * ★★★ 这里有**三个不同的频率**，原作品就是这么分的，不能合并。
+     * ★★★ 这里有**三个不同的频率**，参考实现就是这么分的，不能合并。
      *
      *  ① **数据层**：FFT → 每声道 64 段 → 128 个频谱值。固定 **30Hz**。
-     *     出处：browser-bridge.js 的 `var PUSH_HZ = 30;`
+     *     出处：桥接层 的 `var PUSH_HZ = 30;`
      *     （注释写着「壁纸引擎约 30 次/秒」）。滚动直方图挂在这一层。
      *
      *  ② **分析层**：128 → 512 桶上采样 → 8 个频段和 → 谱通量 / 重心 →
@@ -637,13 +637,13 @@ class Analyzer {
     }
 
     /* ---- 测试钩子：把 128 个频谱值直接塞进来、跑一次分析 ----
-     *  用于「原生分析链 vs 原作品 JS 分析链」喂同一串输入、逐帧比 16 个平滑量。
+     *  用于「原生分析链 vs 参考实现 JS 分析链」喂同一串输入、逐帧比 16 个平滑量。
      *  ⚠ 调用方必须自己按正确的**调用频率**喂：anaHz=250 就每 4ms 调一次。 */
     fun testFeedSpectrum(spec128: DoubleArray) {
         for (i in 0 until LP_OUT_BINS) spectrum[i] = spec128[i]
         analyze512()
     }
 
-    /** 16 个平滑量的原始数组（顺序 = 原作品 smoothedData 的键顺序）。 */
+    /** 16 个平滑量的原始数组（顺序 = 参考实现 smoothedData 的键顺序）。 */
     fun smoothed(): DoubleArray = smooth
 }

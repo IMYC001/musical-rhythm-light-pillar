@@ -289,7 +289,7 @@ object SelfCheck {
              峰值 lin 只有 0.15 → 而 `spectrum = lin^contrast(1.8) × level(0.15)`，
              于是 subBass 峰值只有 0.0048，看着像「低频段坏了」。
              喂满 10 秒后同一个信号给出 subBass ≈ 0.09，和原生版自检报告的 0.093 对上。
-           ★ 这**不是 bug**，是原作品的设计（10 秒滚动窗）—— 但由此可以读出一条
+           ★ 这**不是 bug**，是参考实现的设计（10 秒滚动窗）—— 但由此可以读出一条
              真实世界的结论：**启动后头 10 秒动态范围是压缩的**，
              光柱偏矮、响应偏钝，10 秒后才进入满量程。诊断时别把它当成故障。
 
@@ -315,7 +315,7 @@ object SelfCheck {
             for (i in 0 until 16) if (s[i] > maxSeen[i]) maxSeen[i] = s[i]
             fed += step
         }
-        /* 16 个量的下标（= 原作品 smoothedData 的键顺序）：
+        /* 16 个量的下标（= 参考实现 smoothedData 的键顺序）：
            0 bass / 1 mid / 2 treble / 3 energy / 4 subBass / 5 lowMid /
            6 highMid / 7 presence / 8 brilliance / 9 air / 10 warmth /
            11 brightness / 12 sharpness / 13 smoothness / 14 density / 15 centroid */

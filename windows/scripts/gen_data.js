@@ -1,9 +1,9 @@
 /*
- * 从作品 bundle 里抽出主题色表，生成 C++ 头文件。
+ * 从参考实现 bundle 里抽出主题色表，生成 C++ 头文件。
  *
  * 为什么用抽的而不是手抄：主题色是「线性」色彩空间的值（Three 的 Color），
  * 抄错一个小数点整根光柱的颜色就偏了，而且 15 套主题 × 4 个颜色 = 60 个数。
- * 直接正则抽出来最稳，而且原作品改了主题这张表也能跟着更新。
+ * 直接正则抽出来最稳，而且参考实现改了主题这张表也能跟着更新。
  */
 const fs = require('fs');
 const path = require('path');
@@ -11,7 +11,7 @@ const path = require('path');
 const BUNDLE = process.env.LP_BUNDLE;
 if (!BUNDLE) {
   console.error(
-    '需要指定原作品的 JS bundle：\n' +
+    '需要指定参考实现的 JS bundle：\n' +
     '  LP_BUNDLE=/path/to/assets/index-XXXX.js node scripts/gen_data.js\n' +
     '\n' +
     '（src/data_themes.h 已经进版本库，日常构建不需要跑这一步。）'
@@ -114,7 +114,7 @@ for (const key of order) {
 const f3 = (a) => `{${a.map((v) => v.toFixed(6)).join('f, ')}f}`;
 
 const lines = [];
-lines.push('// 由 scripts/gen_data.js 从作品 bundle 自动抽取，请勿手改。');
+lines.push('// 由 scripts/gen_data.js 从参考实现 bundle 自动抽取，请勿手改。');
 lines.push('// 数值是 Three Color 的**线性**值，着色器里会过一遍 lin2srgb。');
 lines.push('#pragma once');
 lines.push('');

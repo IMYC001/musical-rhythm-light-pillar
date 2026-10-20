@@ -1,15 +1,15 @@
 /*
- * 音频：WASAPI 环回捕获 → FFT → 作品自己的分析链。
+ * 音频：WASAPI 环回捕获 → FFT → 参考实现里的分析链。
  *
- * 链路完全照搬作品 + browser-bridge 的现有实现，分四段：
+ * 链路完全照搬参考实现的现有实现，分四段：
  *
  *   ① WASAPI loopback 抓系统声音（立体声 float32，48kHz 为主）
  *   ② 2048 点 FFT（Blackman 窗）→ 每声道 64 段电平 0~1   ← 等价 Web Audio AnalyserNode
- *   ③ 128 值（64 左 + 64 右）→ 4 倍上采样成 512 桶        ← 等价 setWallpaperAudioData
- *   ④ 512 桶 → 10 个频段包络 + 平滑                      ← 等价作品 bundle 里的 getAudioData
+ *   ③ 128 值（64 左 + 64 右）→ 4 倍上采样成 512 桶        ← 等价 setAudioFrame
+ *   ④ 512 桶 → 10 个频段包络 + 平滑                      ← 等价参考实现 bundle 里的 getAudioData
  *
- * ⚠ ②③④ 三段的常数一个都不能改。作品是在 WE 的 128 值格式下调的参，
- *   bridge 的作者又是照着 WE 的物理含义反推的 64 段划分（0–16kHz 等宽）。
+ * ⚠ ②③④ 三段的常数一个都不能改。参考实现是在 128 值频谱格式下调的参，
+ *   64 段划分（0–16kHz 等宽）也是照该格式的物理含义反推的。
  *   任何一处「等价改写」都会让 drive 的摆幅对不上，表现是光柱要么不动、要么顶满。
  */
 #pragma once
@@ -22,12 +22,12 @@
 #include <mutex>
 #include <vector>
 
-/* ---- ② 的参数（对应 bridge 里的同名常量）---- */
+/* ---- ② 的参数（对应 桥接层里的同名常量）---- */
 static const int LP_CH_BINS = 64;      // 每声道 64 段
 static const int LP_OUT_BINS = 128;    // 64 左 + 64 右
 static const int LP_FFT_SIZE = 2048;
 static const double LP_MAX_HZ = 16000.0;
-/* 等比（log）频率轴的下限，对应 bridge 的 `BAND_LO_HZ = 30`。
+/* 等比（log）频率轴的下限，对应 桥接层的 `BAND_LO_HZ = 30`。
    等比模式下第 i 段下边界 = 30 * (16000/30)^(i/64)。 */
 static const double LP_BAND_LO_HZ = 30.0;
 static const double LP_DB_MIN = -100.0;
@@ -64,17 +64,17 @@ class LpAudio {
   double hiPct = 0.99;
   double minSpan = 4.0;
   /* 滚动直方图的窗口长度（界面上的「跟踪窗口」，单位秒）。
-     ⚠ 直方图挂在**频谱**那一层（固定 30Hz，= 原作品的 `PUSH_HZ`），
+     ⚠ 直方图挂在**频谱**那一层（固定 30Hz，= 参考实现的 `PUSH_HZ`），
        所以窗口长度永远是「秒 × 30」帧 = 默认 300 帧 / 10 秒，
        和渲染帧率无关 —— 改帧率不需要重分配、也不需要重新攒满 10 秒。 */
   double rpWinSec = 10.0;
 
-  /* 作品自己的两个属性（project.json 的默认值）*/
+  /* 参考实现里的两个属性（上游工程配置的默认值）*/
   double intensity = 1.0;       // uAudioIntensity
   double responseRange = 1.0;   // uResponseRange
 
   /* ---- 分析层频率（Hz）----
-     原作品把音频分析（getAudioData，含那个一阶平滑 ee）放在一个
+     参考实现把音频分析（getAudioData，含那个一阶平滑 ee）放在一个
      `setInterval(ht, 1e3/1e3)` 里 —— 请求 1ms，Chromium 把嵌套定时器
      钳到 4ms，所以**实际约 250 次/秒**。
      ⚠ 这个数不能拍脑袋：ee = 0.15 是「每次调用作用一次」、不按 dt 缩放的，
@@ -82,7 +82,7 @@ class LpAudio {
          250Hz → 24.6ms（桌面版实测值）
           60Hz → 111ms   （慢 4.5 倍：幅度被压小、瞬态被抹平）
        实测方法与证据见 tools/README-对照台.md。
-     默认 250 = 桌面版实测值；改它等于改原作品那个定时器的周期。 */
+     默认 250 = 桌面版实测值；改它等于改参考实现那个定时器的周期。 */
   double anaHz = 250.0;
 
   /* 空闲波浪 */
@@ -120,20 +120,20 @@ class LpAudio {
   void rebuildTilt();
 
   /* ---- 测试钩子（只给 audiotest.exe 用，正常运行不碰）----
-     直接喂 128 个频谱值（等价 bridge 的 spectrum 数组）并跑一次分析，
+     直接喂 128 个频谱值（等价 桥接层的 spectrum 数组）并跑一次分析，
      不经过 FFT、不经过音频线程。
      为什么要这个东西：用户报「和 Electron 版观感差不少、幅度偏小、部分节拍
      不响应」—— 这类问题靠肉眼和猜都定位不到，必须把**原生分析链**和
-     **原作品 JS 的分析链**喂同一串输入、逐帧比输出。
+     **参考实现 JS 的分析链**喂同一串输入、逐帧比输出。
      录音路径：光柱.exe --dumpspec 录下真实音乐推出来的 128 个频谱值，
      然后 audiotest.exe 和 tools/jsref.js 各跑一遍，diff 结果。 */
   void testFeedSpectrum(const double* spec128);
   const double* spectrum() const { return spectrum_; }
-  /* 16 个平滑量的原始数组（顺序 = 原作品 smoothedData 的键顺序）：
+  /* 16 个平滑量的原始数组（顺序 = 参考实现 smoothedData 的键顺序）：
        [0]bass [1]mid [2]treble [3]energy [4]subBass [5]lowMid [6]highMid
        [7]presence [8]brilliance [9]air [10]warmth [11]brightness
        [12]sharpness [13]smoothness [14]density [15]spectralCentroid
-     ⚠ 顺序必须和 tools/orig-analyzer.js 的导出顺序、以及 audiotest.cpp 的
+     ⚠ 顺序必须和 tools/ref-analyzer.js 的导出顺序、以及 audiotest.cpp 的
        表头三者严格一致 —— 这是逐帧比对的前提。 */
   const double* smoothed() const { return smooth_; }
 
@@ -162,7 +162,7 @@ class LpAudio {
   void buildBands();
   /* 第 i 段的下边界频率（Hz）。linear = 0–16k 等宽，log = 30–16k 等比。
      ★ buildBands() 和 rebuildTilt() **必须都走这一个函数** ——
-       原作品里 rebuildTilt 的参考频率也是从 bandEdge(i) 取的，
+       参考实现里 rebuildTilt 的参考频率也是从 bandEdge(i) 取的，
        所以切等比时倾斜补偿量要跟着变（见 audio.cpp 里的注释）。 */
   double bandEdgeHz(double i) const;
   void computeSpectrum128();          // ② → spectrum_[0..127]

@@ -34,10 +34,10 @@ LP_MINGW=/path/to/llvm-mingw/bin ./build.sh app    # 只编主程序
 
 ### 主题色表
 
-`src/data_themes.h` 由 `scripts/gen_data.js` 从原作品的 JS bundle 抽取生成。
-**这个头文件已经进版本库**，所以没有原作品 bundle 也能编译。
+`src/data_themes.h` 由 `scripts/gen_data.js` 从参考实现的 JS bundle 抽取生成。
+**这个头文件已经进版本库**，所以没有参考实现 bundle 也能编译。
 
-要重新生成（比如原作品更新了主题）：
+要重新生成（比如参考实现更新了主题）：
 
 ```bash
 LP_BUNDLE=/path/to/index-XXXX.js node scripts/gen_data.js
@@ -96,7 +96,7 @@ LP_BUNDLE=/path/to/index-XXXX.js node scripts/gen_data.js
 | `src/audio.cpp` | WASAPI loopback 采集 + FFT + 8 段包络 + 自适应归一化 |
 | `src/panel.cpp` | 自绘面板（GDI+，两页：声音 / 参数） |
 | `src/prompt.cpp` | 单行输入框（重命名预设） |
-| `src/shader_src.h` | HLSL 着色器，逐行对应原作品的 GLSL |
+| `src/shader_src.h` | HLSL 着色器，逐行对应参考实现的 GLSL |
 | `src/data_themes.h` | 15 套主题色（生成物，不要手改） |
 
 ## 已知限制

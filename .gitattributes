@@ -15,4 +15,4 @@
 
 # 生成物，diff 没意义
 windows/src/data_themes.h linguist-generated=true
-windows/tools/orig-analyzer.js linguist-generated=true
+windows/tools/ref-analyzer.js linguist-generated=true

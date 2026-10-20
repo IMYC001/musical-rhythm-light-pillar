@@ -301,14 +301,14 @@ class PanelBuilder(
 
     /**
      * 一个纯动作按钮。目前只有「恢复默认设置」
-     * （原作品参数页标题行里那个按钮 / Windows 版的 `ID_PANEL_RESET`）。
+     * （参考实现参数页标题行里那个按钮 / Windows 版的 `ID_PANEL_RESET`）。
      *
-     * ★ 刻意**不做二次确认**，和原作品、Windows 版都一致。理由不是偷懒：
+     * ★ 刻意**不做二次确认**，和参考实现、Windows 版都一致。理由不是偷懒：
      *   恢复默认**不碰预设**（预设存在 presets.ini，和 settings.ini 是两份文件），
      *   自己存过的档位一个都不会丢 —— 所以不存在「一按全没了」这种不可逆后果。
      *   多一层弹窗反而会让用户以为这是个危险操作。
      *
-     * 宽度铺满（MATCH_PARENT）：原作品里它是标题行右侧的一个小按钮，
+     * 宽度铺满（MATCH_PARENT）：参考实现里它是标题行右侧的一个小按钮，
      * 但安卓的标题是独立一行、没有「行内放按钮」的位置，铺满更好点。
      */
     private fun buttonView(spec: PItem.Button): View = Button(act).apply {

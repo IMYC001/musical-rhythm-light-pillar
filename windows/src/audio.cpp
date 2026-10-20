@@ -12,7 +12,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static const double LP_IDLE_ENERGY_THRESHOLD = 0.02;  // 作品里的 idleEnergyThreshold
+static const double LP_IDLE_ENERGY_THRESHOLD = 0.02;  // 参考实现里的 idleEnergyThreshold
 
 /* ============================ 小工具 ============================ */
 
@@ -85,7 +85,7 @@ LpAudio::~LpAudio() { stop(); }
 
 /* ============================ 参数变化 ============================ */
 
-/* 第 i 段的下边界频率（Hz）。逐字对应 bridge 的
+/* 第 i 段的下边界频率（Hz）。逐字对应 桥接层的
      function bandEdge(i) {
        if (BAND_MODE === 'log') return BAND_LO_HZ * Math.pow(MAX_HZ / BAND_LO_HZ, i / CH_BINS);
        return MAX_HZ * i / CH_BINS;
@@ -102,7 +102,7 @@ double LpAudio::bandEdgeHz(double i) const {
 
 void LpAudio::rebuildTilt() {
   for (int i = 0; i < LP_CH_BINS; i++) {
-    /* ★ 参考频率取自**当前**频段划分（和原作品一致）。
+    /* ★ 参考频率取自**当前**频段划分（和参考实现一致）。
        v6 之前这里写死了 linear 的 `LP_MAX_HZ * i / LP_CH_BINS` ——
        等比模式下每段的中心频率完全不同，补偿量却按等宽算，
        是第二个偏差（比「切了没反应」轻，但也是错的）。 */
@@ -134,10 +134,10 @@ void LpAudio::dumpBands(FILE* f, double sampleRate) {
   const int fftBins = LP_FFT_SIZE / 2;          // AnalyserNode.frequencyBinCount
   const double binHz = nyq / (double)fftBins;
 
-  /* 作品的 10 个频段在 512 桶域上的边界（闭区间），逐字对应 bundle 里
+  /* 参考实现的 10 个频段在 512 桶域上的边界（闭区间），逐字对应 bundle 里
      `i<=4 ? h+=De : i<=12 ? d+=De : i<=24 ? m+=De : ...`。
      ⚠ 只在诊断里复述一遍，**不要**拿去重构 analyze512 —— 那段逻辑已经
-       和原作品逐帧比对过（maxAbs 0.000e+00），动它就要重新验证一遍。 */
+       和参考实现逐帧比对过（maxAbs 0.000e+00），动它就要重新验证一遍。 */
   static const struct { const char* name; int lo, hi; } kAn[] = {
       {"subBass", 0, 4},    {"bass", 5, 12},       {"lowMid", 13, 24},
       {"mid", 25, 45},      {"highMid", 46, 81},   {"presence", 82, 120},
@@ -208,7 +208,7 @@ void LpAudio::buildBands() {
 void LpAudio::resetTrackers() {
   /* 窗口长度可以调（界面上的「跟踪窗口」，秒）。
      ★ 固定按 **30Hz** 换算成帧数 —— 直方图挂在**频谱**那一层，
-       而频谱固定跑 30Hz（= 原作品 `browser-bridge.js` 的 `PUSH_HZ = 30`）。
+       而频谱固定跑 30Hz（= 参考实现 `桥接层` 的 `PUSH_HZ = 30`）。
        所以「渲染帧率」怎么改都不会动到这里，也就不需要重新攒 10 秒。 */
   const int hz = 30;
   int want = (int)lround(rpWinSec * hz);
@@ -412,7 +412,7 @@ void LpAudio::computeSpectrum128() {
   /* 取最近 2048 帧（每声道分别做 FFT）
    *
    * ⚠⚠ 这里是整条链最容易写错的地方：**读完不能清空缓冲**。
-   * 原作品的 AnalyserNode 是一个「随音频采样率连续滑动的 2048 点窗口」，
+   * 参考实现的 AnalyserNode 是一个「随音频采样率连续滑动的 2048 点窗口」，
    * getByteFrequencyData 只是读，不消费。如果这里 clear 掉，那么每次读到的
    * 都只是「上一帧到现在」那点新数据（48kHz 下每帧约 800 个采样），
    * 永远凑不满 2048 —— FFT 输入全 0，频谱恒为 -100dB，光柱看着还在动
@@ -460,7 +460,7 @@ void LpAudio::computeSpectrum128() {
                            (double)LP_FFT_SIZE;
         double db = 20.0 * log10(mag + 1e-30);
         /* 复刻 getByteFrequencyData 的量化 + 截断（DB_MIN..DB_MAX 之外会被夹住，
-           这一步不能省 —— 作品的段电平是在夹过的值上继续算的）*/
+           这一步不能省 —— 参考实现的段电平是在夹过的值上继续算的）*/
         double norm = (db - LP_DB_MIN) / (LP_DB_MAX - LP_DB_MIN);
         norm = clampd(norm, 0.0, 1.0);
         const int byte = (int)lround(norm * 255.0);
@@ -477,10 +477,10 @@ void LpAudio::computeSpectrum128() {
            得到「该段自己的动态范围」。
 
            ★ 这里**不需要任何抽稀**：整个 computeSpectrum128 已经固定跑 30Hz
-             （原作品 `browser-bridge.js` 的 `PUSH_HZ = 30`），
+             （参考实现 `桥接层` 的 `PUSH_HZ = 30`），
              所以喂进直方图的样本天然就是 30Hz，窗口 300 帧 = 10 秒。
              （v5 曾经让这一层跟着渲染帧率跑、再靠抽稀折算回 30Hz —— 那是
-               错的结构，见 tick() 的注释：原作品的数据层和分析层是两个频率。） */
+               错的结构，见 tick() 的注释：参考实现的数据层和分析层是两个频率。） */
         const size_t base = (size_t)slot * LP_RP_BINS;
         {
           int bi = (int)floor((bandDb - LP_RP_DBMIN) / rpBinW);
@@ -566,13 +566,13 @@ void LpAudio::stopDump() {
 
 void LpAudio::analyze512() {
   /* ③ 128 → 512：最近邻上采样，每个输入值占 4 个输出桶
-        （对应作品里的 Math.floor(n * t / 512)）*/
+        （对应参考实现里的 Math.floor(n * t / 512)）*/
   for (int n = 0; n < 512; n++) {
     const int idx = (int)floor((double)n * LP_OUT_BINS / 512.0);
     bucket_[n] = spectrum_[idx < LP_OUT_BINS ? idx : LP_OUT_BINS - 1];
   }
 
-  /* ④ 作品 bundle 里的 getAudioData，逐项照抄 */
+  /* ④ 参考实现 bundle 里的 getAudioData，逐项照抄 */
   const int n = 512;
   double r = 0, o = 0, C = 0;
   double h = 0, d = 0, m = 0, v = 0, y = 0, x = 0, b = 0, M = 0;
@@ -595,9 +595,9 @@ void LpAudio::analyze512() {
 
   const double R = r / n;
   /* ⚠ 分母比桶数大 1（h 有 5 桶却除以 5？不 —— 见下）：
-     作品原文是 h/5、d/9、m/13、v/21、y/37、x/40、b/61、M/76，
+     参考实现原文是 h/5、d/9、m/13、v/21、y/37、x/40、b/61、M/76，
      桶数分别是 5/8/12/21/36/39/60/75。也就是说**只有 h 是整除的**，
-     其余一律多除了 1。这是原作者调过的刻度，照抄，不要「修正」。 */
+     其余一律多除了 1。这是参考实现调过的刻度，照抄，不要「修正」。 */
   const double L = h / 5.0;
   const double I = d / 9.0;
   const double z = m / 13.0;
@@ -629,28 +629,28 @@ void LpAudio::analyze512() {
   const double Re = fe / 8.0;
   const double q = r > 0 ? o / r : 0.0;
 
-  /* ★★★ 一阶平滑系数：**必须用原作品的原始值，一次都不能换算**。
+  /* ★★★ 一阶平滑系数：**必须用参考实现的原始值，一次都不能换算**。
    *
-   *  原作品 bundle 里（`getAudioData`）：
+   *  参考实现 bundle 里（`getAudioData`）：
    *      const ee = r > 0 ? .15 : .08;
    *      this.smoothedData.subBass += (L - this.smoothedData.subBass) * ee;
    *      …（16 个量都是这一个系数）
    *  它是**每次调用作用一次**的固定系数，而且**没有**按 dt 缩放 ——
    *  同一个函数里的节拍检测器倒是按 dt 缩放了（1 - 0.6^(dt*60)），
-   *  说明作者是有意这么写的。而它跑在 `requestAnimationFrame` 里，
-   *  频率由 `FPS_LIMIT` 决定（browser-bridge.js 里默认 60）——
-   *  作者自己也在注释里点明了这一点：
+   *  说明这是有意这么写的。而它跑在 `requestAnimationFrame` 里，
+   *  频率由 `FPS_LIMIT` 决定（桥接层 里默认 60）——
+   *  上游注释里也点明了这一点：
    *      「浏览器里不限制的话会跑满刷新率，节拍检测器的平滑系数会跟着变形」。
    *
    *  ⚠ v5 在这里犯过一个错：把 ee 当成「按 30Hz 推送、每次作用一次」，
    *    于是按相同时间常数换算成 ee_eff = 1-(1-0.15)^(30/pushHz)，
-   *    在 60fps 下得到 0.0780。结果时间常数变成 0.214s，是原作品的 1.93 倍
-   *    （原作品 0.111s）→ **包络峰值只剩 67%**，
+   *    在 60fps 下得到 0.0780。结果时间常数变成 0.214s，是参考实现的 1.93 倍
+   *    （参考实现 0.111s）→ **包络峰值只剩 67%**，
    *    表现就是用户报的「响应幅度没有 Electron 大、部分节拍不响应」。
    *
    *  正确做法：分析层跟着渲染帧率跑，系数原样用 0.15 / 0.08。
-   *  这样 fpsLimit=60 时与原作品（FPS_LIMIT=60）**逐帧一致**；
-   *  把 fpsLimit 调到别的值，也就等价于把原作品的 FPS_LIMIT 调到那个值 ——
+   *  这样 fpsLimit=60 时与参考实现（FPS_LIMIT=60）**逐帧一致**；
+   *  把 fpsLimit 调到别的值，也就等价于把参考实现的 FPS_LIMIT 调到那个值 ——
    *  包括它在高帧率下「更跟手、更抖」的那一面，那才是忠实复刻。 */
   const double ee = r > 0 ? 0.15 : 0.08;
   smooth_[0] += (X - smooth_[0]) * ee;    // bass
@@ -690,7 +690,7 @@ void LpAudio::analyze512() {
     lastIdleTime_ = 0;
   }
 
-  /* 电平表：和 bridge 的 updateMeter 同一套算式（sum/128*5.5，夹到 1）*/
+  /* 电平表：和 桥接层的 updateMeter 同一套算式（sum/128*5.5，夹到 1）*/
   double sum = 0;
   for (int i = 0; i < LP_OUT_BINS; i++) sum += spectrum_[i];
   meterLevel = (float)std::min(1.0, (sum / LP_OUT_BINS) * 5.5);
@@ -699,7 +699,7 @@ void LpAudio::analyze512() {
 /* ---- 测试钩子：把 128 个频谱值直接塞进来、跑一次分析 ----
  *
  *  为什么要有它：用户报「原生观感比 Electron 差、幅度偏小、部分节拍不响应」，
- *  这类问题靠肉眼和猜都定位不到。必须把**原生分析链**和**原作品 JS 分析链**
+ *  这类问题靠肉眼和猜都定位不到。必须把**原生分析链**和**参考实现 JS 分析链**
  *  喂**同一串输入**，逐帧比 16 个平滑量的输出，用数字说话。
  *
  *  注意它**只跑 ③④ 两段**（analyze512），不碰 FFT、不碰直方图 ——
@@ -718,10 +718,10 @@ void LpAudio::testFeedSpectrum(const double* spec128) {
 void LpAudio::tick(double dt) {
   nowMs_ += dt * 1000.0;
 
-  /* ★★★ 这里有**三个不同的频率**，原作品就是这么分的，不能合并。
+  /* ★★★ 这里有**三个不同的频率**，参考实现就是这么分的，不能合并。
    *
    *  ① **数据层**：FFT → 每声道 64 段 → 128 个频谱值。固定 **30Hz**。
-   *     出处：`browser-bridge.js` 的 `var PUSH_HZ = 30;`
+   *     出处：`桥接层` 的 `var PUSH_HZ = 30;`
    *     （注释写着「壁纸引擎约 30 次/秒」）。滚动直方图挂在这一层，
    *     所以它也必须 30Hz，窗口 300 帧 = 10 秒。
    *

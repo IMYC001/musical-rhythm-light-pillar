@@ -17,7 +17,7 @@ import java.nio.FloatBuffer
 /**
  * EGL + GLES 2.0 渲染器。只负责「把一根全屏 quad 画出来」这件事。
  *
- * 用 GLES 2.0 而不是 3.0：原作品的着色器是 GLSL ES 1.00（`varying` +
+ * 用 GLES 2.0 而不是 3.0：参考实现的着色器是 GLSL ES 1.00（`varying` +
  * `gl_FragColor`），2.0 直接吃，不需要改写成 `in/out`。
  * 多两个 quad 的负载在 3.0 上也没有任何收益。
  */

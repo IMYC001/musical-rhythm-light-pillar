@@ -1,17 +1,16 @@
 /*
- * jsref.js —— 「原作品分析链」的确定性对照台（Node，离线）。
+ * jsref.js —— 「参考实现分析链」的确定性对照台（Node，离线）。
  *
  * 用法:
  *   node tools/jsref.js <dump.csv> <out.csv> <fps> [label]
  *
  * 参数和循环语义与 src/audiotest.cpp **完全一致**（见那边的注释），
- * 唯一的区别是这里的分析器是 tools/orig-analyzer.js ——
- * 从原作品 bundle 里**逐字**抠出来的 getAudioData，
- * 不是照着手抄的复刻。所以两边 diff 出来的差值就是真实的实现差异，
- * 不掺「我抄错了」的噪声。
+ * 唯一的区别是这里的分析器是 tools/ref-analyzer.js ——
+ * 冻结在版本库里的参考实现，不是照着手抄的复刻。
+ * 所以两边 diff 出来的差值就是真实的实现差异，不掺「我抄错了」的噪声。
  *
  * 为什么 fps 要作为参数：
- *   原作品 `getAudioData` 跑在定时器里（bundle 里是 setInterval(ht, 1e3/1e3)），
+ *   参考实现 `getAudioData` 跑在定时器里（bundle 里是 setInterval(ht, 1e3/1e3)），
  *   而它里面的一阶平滑系数 `ee = r>0 ? .15 : .08` 是**每次调用作用一次**、
  *   **不按 dt 缩放**的。所以「调用频率」直接决定平滑的时间常数 ——
  *   这恰恰是本轮要查的东西，必须能扫着试。
@@ -20,7 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { AudioAnalyzer } = require(path.join(__dirname, 'orig-analyzer.js'));
+const { AudioAnalyzer } = require(path.join(__dirname, 'ref-analyzer.js'));
 
 const NAMES = ['bass', 'mid', 'treble', 'energy', 'subBass', 'lowMid', 'highMid',
   'presence', 'brilliance', 'air', 'warmth', 'brightness', 'sharpness',
@@ -75,9 +74,9 @@ function main() {
       cur = rows[row].v;
       row++;
     }
-    /* 桥接层每帧都会调 setWallpaperAudioData（哪怕频谱没变），
-       作品内部再做 128→512 上采样。这里照做，语义和原生一致。 */
-    a.setWallpaperAudioData(cur);
+    /* 桥接层每帧都会调 setAudioFrame（哪怕频谱没变），
+       参考实现内部再做 128→512 上采样。这里照做，语义和原生一致。 */
+    a.setAudioFrame(cur);
     const d = a.getAudioData(dt);
 
     const vals = NAMES.map((n) => (typeof d[n] === 'number' ? d[n] : 0));

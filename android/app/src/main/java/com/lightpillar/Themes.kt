@@ -1,7 +1,7 @@
 package com.lightpillar
 
 /**
- * 一套主题。数值是从作品 bundle 自动抽取的 Three Color **线性**值，
+ * 一套主题。数值是从参考实现 bundle 自动抽取的 Three Color **线性**值，
  * 着色器里会过一遍 lin2srgb。
  *
  * ⚠ 和 Windows 版 `src/data_themes.h` 逐字一致，不要手改。

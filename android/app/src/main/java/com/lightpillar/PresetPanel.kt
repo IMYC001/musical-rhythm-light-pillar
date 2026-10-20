@@ -99,7 +99,7 @@ class PresetPanel(
      * 把「当前档位」这一行刷成 store 里的状态。
      *
      * ★ 对外公开（原来是 private）：MainActivity 的「恢复默认设置」要调它 ——
-     *   恢复默认会把 [SettingsStore.selected] 清成 0（原作品对应
+     *   恢复默认会把 [SettingsStore.selected] 清成 0（参考实现对应
      *   `activePreset = null`，注释原话「已经离开任何一套预设了，下拉框不该还显示着它」），
      *   不刷的话这一行还停在某一档的名字上，而参数已经是出厂默认值了 ——
      *   下拉在说谎，用户只会得出「预设被改坏了」。

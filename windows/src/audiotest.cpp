@@ -7,7 +7,7 @@
  * 它做什么：
  *   把 光柱.exe --dumpspec 录下来的 128 个频谱值（固定 30Hz）按**理想渲染循环**
  *   重新播一遍，每帧导出 16 个平滑量。同一份 dump 交给
- *   tools/orig-analyzer.js（从原作品 bundle 逐字抠出来的 getAudioData）跑，
+ *   tools/ref-analyzer.js（从参考实现 bundle 逐字抠出来的 getAudioData）跑，
  *   两边逐帧 diff。
  *
  * 为什么必须有这个东西：
@@ -42,7 +42,7 @@
 
 #include "audio.h"
 
-/* 16 个量的名字与顺序 —— 必须和 tools/orig-analyzer.js 的导出顺序一致 */
+/* 16 个量的名字与顺序 —— 必须和 tools/ref-analyzer.js 的导出顺序一致 */
 static const char* kNames[16] = {
     "bass", "mid", "treble", "energy", "subBass", "lowMid", "highMid",
     "presence", "brilliance", "air", "warmth", "brightness", "sharpness",
@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
   if (argc < 4) {
     fprintf(stderr,
             "用法: audiotest.exe <dump.csv> <out.csv> <fps> [label]\n"
-            "  fps   : 模拟的渲染帧率（= 原作品的 FPS_LIMIT）\n"
+            "  fps   : 模拟的渲染帧率（= 参考实现的 FPS_LIMIT）\n"
             "  label : 只跑 dump 里这个标签的行；省略则跑全部\n");
     return 1;
   }

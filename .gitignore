@@ -26,6 +26,7 @@ presets.ini
 # ---- 诊断 / 取证产物 ----
 tmp/
 shots/
+cmp1/
 *.bmp
 fb_dump.png
 

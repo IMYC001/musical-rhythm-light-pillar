@@ -1,4 +1,4 @@
-// 由 scripts/gen_data.js 从作品 bundle 自动抽取，请勿手改。
+// 由 scripts/gen_data.js 从参考实现 bundle 自动抽取，请勿手改。
 // 数值是 Three Color 的**线性**值，着色器里会过一遍 lin2srgb。
 #pragma once
 

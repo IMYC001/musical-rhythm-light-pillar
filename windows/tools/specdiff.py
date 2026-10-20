@@ -2,13 +2,13 @@
 """逐帧比对两条分析链的输出，给出可证伪的数字。
 
 用法:
-  python tools/specdiff.py <原生.csv> <原作品.csv> [--quiet]
+  python tools/specdiff.py <原生.csv> <参考实现.csv> [--quiet]
 
 两份 CSV 必须行数相同、列顺序相同（都由 audiotest.exe / jsref.js 生成）。
 输出：
-  · 每个量的最大/平均绝对差、以及相对幅度（平均差 / 原作品的峰值）
+  · 每个量的最大/平均绝对差、以及相对幅度（平均差 / 参考实现的峰值）
   · **包络峰值比** —— 用户报「幅度没有 Electron 大」时，看的正是这个数：
-      peak(原生) / peak(原作品)。1.000 = 幅度一致。
+      peak(原生) / peak(参考实现)。1.000 = 幅度一致。
   · 判定：所有量 maxAbs < 2e-4 视为「逐帧一致」。
 
 退出码：0 = 一致，2 = 有超差。
@@ -81,7 +81,7 @@ def main():
     worst = 0.0
     if not quiet:
         print("%-18s %12s %12s %12s %10s" %
-              ("量", "原生峰值", "原作品峰值", "峰值比", "最大绝对差"))
+              ("量", "原生峰值", "参考实现峰值", "峰值比", "最大绝对差"))
         print("-" * 70)
     for i in range(n):
         m = 0.0
@@ -103,7 +103,7 @@ def main():
         if k in ha:
             i = ha.index(k)
             if peak_b[i] > 1e-12:
-                print("  %-10s 峰值比 原生/原作品 = %.4f" % (k, peak_a[i] / peak_b[i]))
+                print("  %-10s 峰值比 原生/参考实现 = %.4f" % (k, peak_a[i] / peak_b[i]))
     ok = worst < TOL
     print("判定: %s" % ("逐帧一致 ✓" if ok else "存在偏差 ✗"))
     return 0 if ok else 2
