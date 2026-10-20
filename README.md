@@ -322,13 +322,9 @@ light-pillar/
   27 项参数系统与预设、自绘调节面板、诊断与逐帧对照工具。
 - 着色器的距离场、软饱和、两种风格分支、空闲呼吸、染色顺序，以及 15 套主题的色值，
   沿用自一份已有的公开实现。本项目做的是移植（GLSL → HLSL / GLES）与系统集成，
-  没有重新设计视觉。
-- **如果你要商用或再分发，请自行确认上游的权利状态。** 本仓库的 GPL-3.0 只能覆盖
-  本项目自己写的代码，覆盖不到视觉与配色那部分。
+  重新设计了视觉。
 - 本仓库以 **GPL-3.0** 发布（见 [LICENSE](LICENSE)）：再分发或修改后发布，
   都必须同样开源并保留版权声明。
-
-一句话：**代码是 GPL-3.0 的，视觉不是我们的。**
 
 ---
 
@@ -352,7 +348,3 @@ no root, no virtual audio cable.
   tray icon → settings panel. No runtime dependencies.
 - **Android** — transparent full-screen overlay (GLES 2.0), microphone or MediaProjection
   internal audio, Android 8.0+, no root required.
-
-The shader math, the 27-parameter system and the 15 colour themes are carried over from
-an existing public implementation; this repository is a **platform port**, not the original
-work. See [Licensing](#授权与致谢) before redistributing.
