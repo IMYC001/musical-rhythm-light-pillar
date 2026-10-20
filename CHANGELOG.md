@@ -9,7 +9,7 @@
 
 ### Windows 原生版
 
-- **单文件 exe，约 650 KB**，静态链接，无 .NET / VC 运行库依赖。
+- **单文件 exe，约 580 KB**，静态链接，无 .NET / VC 运行库依赖。
 - **D3D11 + DirectComposition**，预乘 alpha 合成 —— 只加光，不盖黑底。
 - **WASAPI loopback** 采集系统输出，不需要虚拟声卡。
 - **托盘图标**：左键开面板，右键启停 / 退出。

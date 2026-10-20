@@ -104,7 +104,7 @@ Windows 版是托盘里点开的自绘面板（两页：**声音** / **参数**�
 
 | | Windows | Android |
 |---|---|---|
-| 产物 | 单文件 `LightPillar.exe`（约 650 KB） | `LightPillar.apk`（约 5.7 MB） |
+| 产物 | 单文件 `LightPillar.exe`（约 580 KB） | `LightPillar.apk`（约 5.7 MB） |
 | 依赖 | 无。静态链接，不需要 .NET / VC 运行库 | Android 8.0+（API 26） |
 | 渲染 | D3D11 + DirectComposition，预乘 alpha | GLES 2.0 全屏透明悬浮窗 |
 | 声音 | WASAPI loopback（抓系统输出，无需虚拟声卡） | 麦克风 / 内部音频（MediaProjection，需授权） |
@@ -345,7 +345,7 @@ alpha (`RGB + desktop × (1 − A)`), so the desktop stays visible and clickable
 the beams behave like real light cast onto the screen. Mouse-transparent, full-screen,
 no root, no virtual audio cable.
 
-- **Windows** — single ~650 KB executable, D3D11 + DirectComposition, WASAPI loopback,
+- **Windows** — single ~580 KB executable, D3D11 + DirectComposition, WASAPI loopback,
   tray icon → settings panel. No runtime dependencies.
 - **Android** — transparent full-screen overlay (GLES 2.0), microphone or MediaProjection
   internal audio, Android 8.0+, no root required.

@@ -20,7 +20,7 @@ LP_MINGW=/path/to/llvm-mingw/bin ./build.sh app    # 只编主程序
 
 | 文件 | 说明 |
 |---|---|
-| `LightPillar.exe` | 主程序，约 650 KB |
+| `LightPillar.exe` | 主程序，约 580 KB |
 | `probe.exe` / `shot.exe` / `cmp.exe` | 诊断工具（见下） |
 
 依赖全是系统自带：`d3d11` `dxgi` `d3dcompiler_47` `ole32` `mmdevapi`
