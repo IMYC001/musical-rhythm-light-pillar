@@ -55,6 +55,14 @@ jobs:
           java-version: "17"
 
       - uses: android-actions/setup-android@v3
+        with:
+          # 同 build-android.yml：默认的 `tools` 包在新镜像里已不存在，会直接失败
+          packages: "platform-tools"
+
+      - name: 确保 platform 34 / build-tools 34 存在
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" > /dev/null
 
       - uses: gradle/actions/setup-gradle@v3
         with:

@@ -24,6 +24,18 @@ jobs:
           java-version: "17"
 
       - uses: android-actions/setup-android@v3
+        with:
+          # ⚠ 不要用默认的 "tools platform-tools"：新版 runner 镜像里 `tools`
+          #   这个包名已经不存在，sdkmanager 会以 `Failed to find package 'tools'`
+          #   失败，而这一步失败会让整个 job 19 秒就红掉。
+          #   platform-tools 是 adb 所在包，Gradle 构建其实不需要，但留着无妨。
+          packages: "platform-tools"
+
+      - name: 确保 platform 34 / build-tools 34 存在
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "SDK 就绪：$(ls "$ANDROID_SDK_ROOT/platforms" | tr '\n' ' ')"
 
       - uses: gradle/actions/setup-gradle@v3
         with:
